@@ -31,8 +31,9 @@ nav button{flex:1;border:0;background:none;color:var(--t);padding:9px 2px;font-s
 <nav><button data-t="day" onclick="go('day')">📅 اليومي</button><button data-t="emp" onclick="go('emp')">👥 الموظفين</button><button data-t="vch" onclick="go('vch')">🧾 السندات</button><button data-t="rep" onclick="go('rep')">📊 التقارير</button><button data-t="set" onclick="go('set')">⚙ الإعدادات</button></nav>
 <div id="mod" onclick="if(event.target==this)this.style.display='none'"><div id="mb"></div></div>
 <script>
-const VER='1.6.0',$=i=>document.getElementById(i),N=x=>+x||0,F=x=>(Math.round(N(x)*100)/100).toLocaleString('en');
+const VER='1.6.1',$=i=>document.getElementById(i),N=x=>+x||0,F=x=>(Math.round(N(x)*100)/100).toLocaleString('en');
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+const SHEET_URL='https://script.google.com/macros/s/AKfycbwEppLQrNi_K8Qy2ODFS6CDjEjZOl2SGW7xjaL3QdFEf9C4nhNECzYc3XnvvnkMr3IYbg/exec';/* ← الصق رابط Apps Script (ينتهي بـ /exec) بين العلامتين */
 const NM={A:'هواتف',B:'هواوي'},CAPS={A:35000,B:15000},RATE=5;
 const TY={m:'ماكينة شحن',u:'يوزر شرائح',c:'بطاقات'};
 const nb=()=>({days:{},open:{bal:{},cs:{d:0,c:0},par:{}},vch:[],ec:{}});
@@ -47,9 +48,10 @@ const h='<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><m
 const f=new File([h],'report-'+S.cur+'-'+new Date().toISOString().slice(0,10)+'.html',{type:'text/html'});
 if(navigator.canShare&&navigator.canShare({files:[f]}))navigator.share({files:[f]}).catch(()=>{});else{const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=f.name;a.click()}}
 function flat(){const cu=S.cur,rows=[['التاريخ','الفرع','الصنف','الشحن','رصيد آخر اليوم','التكلفة','المبيعات','شرائح 1','شرائح 2']];['A','B'].forEach(k=>{S.cur=k;Object.keys(B().days).sort().forEach(d=>D().items.forEach(i=>{const c=cell(i.id,d);if(['charge','bal','sales','cnt0','cnt1'].every(x=>c[x]===undefined||c[x]===''))return;const kk=cost(i.id,d);rows.push([d,NM[k],i.n,N(c.charge),c.bal===undefined||c.bal===''?'':N(c.bal),kk===null?'':kk,N(c.sales),N(c.cnt0),N(c.cnt1)])}))});S.cur=cu;return rows}
-async function push(){if(!S.url)return;try{await fetch(S.url,{method:'POST',mode:'no-cors',body:JSON.stringify({s:S,f:flat()})})}catch(e){}}
-async function pull(f){if(!S.url)return alert('أدخل رابط جوجل شيت أولاً');try{const d=await(await fetch(S.url)).json();if(d&&d.br&&(f||d.ts>S.ts)){const u=S.url;S=d;S.url=u;if(!S.defs)S.defs={cats:[],items:[],par:[]};if(!S.cap)S.cap={A:35000,B:15000};localStorage.setItem('shs',JSON.stringify(S));R()}}catch(e){if(f)alert('تعذر الاتصال')}}
-setInterval(()=>{if(S.url&&document.activeElement.tagName!='INPUT')pull(0)},20000);
+const U=()=>SHEET_URL||S.url;
+async function push(){if(!U())return;try{await fetch(U(),{method:'POST',mode:'no-cors',body:JSON.stringify({s:S,f:flat()})})}catch(e){}}
+async function pull(f){if(!U())return f&&alert('أدخل رابط جوجل شيت أولاً');try{const d=await(await fetch(U())).json();if(d&&d.br&&(f||d.ts>S.ts)){const u=S.url;S=d;S.url=u;if(!S.defs)S.defs={cats:[],items:[],par:[]};if(!S.cap)S.cap={A:35000,B:15000};localStorage.setItem('shs',JSON.stringify(S));R()}}catch(e){if(f)alert('تعذر الاتصال')}}
+setInterval(()=>{if(U()&&document.activeElement.tagName!='INPUT')pull(0)},20000);
 function sw(k){S.cur=k;save();R()}
 function go(t){tab=t;R()}
 function R(){document.documentElement.dataset.th=S.th;
@@ -138,7 +140,7 @@ return`<div class="card"><h3>دفتر الأستاذ — ${NM[S.cur]}</h3><div c
 // ===== settings
 function vSet(){return`<div class="card"><h3>الإعدادات</h3><p>الإصدار: ${VER}</p><div class="row"><button class="b" onclick="go('items')">📦 إعداد الأصناف</button><button class="b" onclick="go('open')">📒 قيد أول المدة</button></div><div class="row">المظهر: <select onchange="S.th=this.value;save();R()"><option value="light">فاتح</option><option value="dark" ${S.th=='dark'?'selected':''}>داكن</option></select></div><button class="b" onclick="chk()">🔄 تحديث التطبيق</button></div>
 <div class="card"><h3>نسخ احتياطي</h3><button class="b g" onclick="exp()">تصدير</button><button class="b" onclick="$('imp').click()">استيراد</button><input id="imp" type="file" accept=".json" hidden onchange="imp(this)"></div>
-<div class="card"><h3>مزامنة جوجل شيت</h3><input id="su" style="width:100%" placeholder="رابط Apps Script (Web App)" value="${S.url}" onchange="S.url=this.value.trim();save()"><div class="row"><button class="b" onclick="push();alert('تم الإرسال')">رفع الآن</button><button class="b" onclick="pull(1)">سحب الآن</button></div><small>الرفع تلقائي بعد كل تعديل، والسحب كل 20 ثانية. كود Apps Script:</small><textarea readonly style="width:100%;height:110px;direction:ltr">function doPost(e){var p=JSON.parse(e.postData.contents),ss=SpreadsheetApp.getActive();
+<div class="card"><h3>مزامنة جوجل شيت</h3>${SHEET_URL?'<p class="pos">✓ مربوط بجوجل شيت تلقائيًا</p>':'<input id="su" style="width:100%" placeholder="رابط Apps Script (ينتهي بـ /exec)" value="'+S.url+'" onchange="S.url=this.value.trim();save()">'}<div class="row"><button class="b" onclick="push();alert('تم الإرسال')">رفع الآن</button><button class="b" onclick="pull(1)">سحب الآن</button></div><small>الرفع تلقائي بعد كل تعديل، والسحب كل 20 ثانية. كود Apps Script:</small><textarea readonly style="width:100%;height:110px;direction:ltr">function doPost(e){var p=JSON.parse(e.postData.contents),ss=SpreadsheetApp.getActive();
 var d=ss.getSheetByName('data')||ss.insertSheet('data'),s=JSON.stringify(p.s),r=[];
 for(var i=0;i<s.length;i+=40000)r.push([s.substr(i,40000)]);
 d.clear();d.getRange(1,1,r.length,1).setValues(r);
@@ -166,5 +168,5 @@ addEventListener('beforeinstallprompt',e=>{e.preventDefault();dp=e;if(!matchMedi
 addEventListener('appinstalled',()=>$('ins').style.display='none');
 if(matchMedia('(display-mode:standalone)').matches||navigator.standalone)$('ins').style.display='none';
 function inst(){dp&&dp.prompt()}
-R();chk(1);
+R();chk(1);if(U())pull(0);
 </script></body></html>

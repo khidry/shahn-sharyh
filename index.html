@@ -31,7 +31,7 @@ nav button{flex:1;border:0;background:none;color:var(--t);padding:9px 2px;font-s
 <nav><button data-t="day" onclick="go('day')">📅 اليومي</button><button data-t="emp" onclick="go('emp')">👥 الموظفين</button><button data-t="vch" onclick="go('vch')">🧾 السندات</button><button data-t="rep" onclick="go('rep')">📊 التقارير</button><button data-t="set" onclick="go('set')">⚙ الإعدادات</button></nav>
 <div id="mod" onclick="if(event.target==this)this.style.display='none'"><div id="mb"></div></div>
 <script>
-const VER='1.7.0',$=i=>document.getElementById(i),N=x=>+x||0,F=x=>(Math.round(N(x)*100)/100).toLocaleString('en');
+const VER='1.7.1',$=i=>document.getElementById(i),N=x=>+x||0,F=x=>(Math.round(N(x)*100)/100).toLocaleString('en');
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,5);
 const CLEAR_PIN=false;/* ← لو نسيت الرقم السري: غيّرها true ثم افتح التطبيق مرة، وبعدها رجّعها false */
 const SHEET_URL='https://script.google.com/macros/s/AKfycbwEppLQrNi_K8Qy2ODFS6CDjEjZOl2SGW7xjaL3QdFEf9C4nhNECzYc3XnvvnkMr3IYbg/exec';/* ← الصق رابط Apps Script (ينتهي بـ /exec) بين العلامتين */
@@ -51,9 +51,22 @@ function expo(){const o=[...$('m').querySelectorAll('input')],c=$('m').cloneNode
 const h='<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>تقرير</title><style>body{font-family:Tahoma,sans-serif;padding:12px}table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:12px}th{background:#0ea5e9;color:#fff;padding:5px}td{border:1px solid #bae6fd;padding:4px;text-align:center}.tot td{background:#e0f2fe;font-weight:700}h3{color:#0369a1}.pos{color:#16a34a}.neg{color:#dc2626}</style></head><body><h2>'+NM[S.cur]+' — '+new Date().toISOString().slice(0,10)+'</h2>'+c.innerHTML+'</body></html>';
 const f=new File([h],'report-'+S.cur+'-'+new Date().toISOString().slice(0,10)+'.html',{type:'text/html'});
 if(navigator.canShare&&navigator.canShare({files:[f]}))navigator.share({files:[f]}).catch(()=>{});else{const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=f.name;a.click()}}
-function flat(){const cu=S.cur,rows=[['التاريخ','الفرع','الصنف','الشحن','رصيد آخر اليوم','التكلفة','المبيعات','شرائح 1','شرائح 2']];['A','B'].forEach(k=>{S.cur=k;Object.keys(B().days).sort().forEach(d=>D().items.forEach(i=>{const c=cell(i.id,d);if(['charge','bal','sales','cnt0','cnt1'].every(x=>c[x]===undefined||c[x]===''))return;const kk=cost(i.id,d);rows.push([d,NM[k],i.n,N(c.charge),c.bal===undefined||c.bal===''?'':N(c.bal),kk===null?'':kk,N(c.sales),N(c.cnt0),N(c.cnt1)])}))});S.cur=cu;return rows}
+function grid(){const cu=S.cur,out=[],ok=['charge','bal','sales','cnt0','cnt1'],E=v=>v===undefined||v===''?'':N(v),sum=a=>a.reduce((s,x)=>s+N(x),0);
+['A','B'].forEach(k=>{S.cur=k;const I=D().items,U=I.filter(isU),sn=[];U.forEach(i=>subs(i).forEach(s=>{if(!sn.includes(s))sn.push(s)}));const rows=[],heads=[];
+Object.keys(B().days).sort().filter(d=>I.some(i=>ok.some(x=>{const v=cell(i.id,d)[x];return v!==undefined&&v!==''}))).forEach(d=>{
+const sm={};sn.forEach(s=>sm[s]=0);U.forEach(i=>subs(i).forEach((s,j)=>sm[s]+=cum(i.id,d,'cnt'+j)));const sv_=sn.map(s=>sm[s]);
+const cs=I.map(i=>cell(i.id,d)),ks=I.map(i=>cost(i.id,d)),cn=I.map((i,x)=>isU(i)?subs(i).reduce((s,_,j)=>s+N(cs[x]['cnt'+j]),0):'');
+heads.push(rows.length);
+rows.push([d,'',...I.map(i=>i.n),'الإجمالي','',...sn,'الإجمالي']);
+rows.push(['','شحن',...cs.map(c=>E(c.charge)),sum(cs.map(c=>c.charge)),'',...sv_,sum(sv_)]);
+rows.push(['','الرصيد',...cs.map(c=>E(c.bal)),'']);
+rows.push(['','التكلفة',...ks.map(x=>x===null?'':x),sum(ks)]);
+rows.push(['','ت. المبيعات',...cs.map(c=>E(c.sales)),sum(cs.map(c=>c.sales))]);
+rows.push(['','الشرائح',...cn,sum(cn)])});
+const w=rows.reduce((m,r)=>Math.max(m,r.length),1);rows.forEach(r=>{while(r.length<w)r.push('')});out.push({name:NM[k],rows,heads})});
+S.cur=cu;return out}
 const U=()=>SHEET_URL||S.url;
-async function push(){if(!U())return;try{await fetch(U(),{method:'POST',mode:'no-cors',body:JSON.stringify({s:S,f:flat()})})}catch(e){}}
+async function push(){if(!U())return;try{await fetch(U(),{method:'POST',mode:'no-cors',body:JSON.stringify({s:S,g:grid()})})}catch(e){}}
 async function pull(f){if(!U())return f&&alert('أدخل رابط جوجل شيت أولاً');try{const d=await(await fetch(U())).json();if(d&&d.br&&(f||d.ts>S.ts)){const u=S.url;S=d;S.url=u;if(!S.defs)S.defs={cats:[],items:[],par:[]};if(!S.cap)S.cap={A:35000,B:15000};localStorage.setItem('shs',JSON.stringify(S));R()}}catch(e){if(f)alert('تعذر الاتصال')}}
 setInterval(()=>{if(U()&&document.activeElement.tagName!='INPUT')pull(0)},20000);
 function sw(k){S.cur=k;save();R()}
